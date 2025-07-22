@@ -68,18 +68,16 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        
-        {/* Main Greeting */}
-        <div className="text-center mb-12 animate-fade-in">
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Your friendly assistant is ready to help.
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            I can find answers from your uploaded documents. Just choose a category and ask away!
-          </p>
-        </div>
+    <div className="space-y-8">
+      {/* Main Greeting */}
+      <div className="text-center animate-fade-in">
+        <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
+          Your friendly assistant is ready to help.
+        </h1>
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          I can find answers from your uploaded documents. Just choose a category and ask away!
+        </p>
+      </div>
 
         {/* Category Selection */}
         <div className="mb-8">
@@ -202,7 +200,6 @@ export default function ChatInterface() {
             )}
           </div>
         </Card>
-      </div>
     </div>
   );
 }
