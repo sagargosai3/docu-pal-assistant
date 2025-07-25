@@ -24,7 +24,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter basename="/docu-pal-assistant">
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/upload" element={<Upload />} />

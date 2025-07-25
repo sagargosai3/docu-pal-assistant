@@ -82,10 +82,15 @@ const categories = [
   { id: 'other-info' as const, label: 'Other Info', icon: FolderOpen }
 ];
 
-export default function DocumentBrowser() {
+// Add prop type
+interface DocumentBrowserProps {
+  category?: Category;
+}
+
+export default function DocumentBrowser({ category }: DocumentBrowserProps) {
   const [documents] = useState<Document[]>(mockDocuments);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<Category>('all');
+  const [selectedCategory, setSelectedCategory] = useState<Category>(category || 'all');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'size'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -176,7 +181,7 @@ export default function DocumentBrowser() {
           </div>
 
           <div className="flex gap-3 flex-wrap">
-            <Select value={selectedCategory} onValueChange={(value: Category) => setSelectedCategory(value)}>
+            <Select value={selectedCategory} onValueChange={(value: Category) => setSelectedCategory(value)} disabled={!!category}>
               <SelectTrigger className="w-48">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue />

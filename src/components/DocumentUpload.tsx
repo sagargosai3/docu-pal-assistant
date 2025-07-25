@@ -24,10 +24,15 @@ const categories = [
   { id: 'other-info' as const, label: 'Other Info', icon: FolderOpen }
 ];
 
-export default function DocumentUpload() {
+// Add prop type
+interface DocumentUploadProps {
+  category?: Category;
+}
+
+export default function DocumentUpload({ category }: DocumentUploadProps) {
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
-  const [defaultCategory, setDefaultCategory] = useState<Category>('other-info');
+  const [defaultCategory, setDefaultCategory] = useState<Category>(category || 'other-info');
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -133,7 +138,7 @@ export default function DocumentUpload() {
         <h3 className="text-lg font-semibold mb-4">Upload Settings</h3>
         <div className="flex items-center gap-4">
           <label className="text-sm font-medium">Default Category:</label>
-          <Select value={defaultCategory} onValueChange={(value: Category) => setDefaultCategory(value)}>
+          <Select value={defaultCategory} onValueChange={(value: Category) => setDefaultCategory(value)} disabled={!!category}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
