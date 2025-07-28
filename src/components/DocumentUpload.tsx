@@ -1,10 +1,17 @@
+// src/components/DocumentUpload.tsx
+
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Settings, FolderOpen, X, CheckCircle, AlertCircle } from 'lucide-react';
+import {
+  Upload, FileText, Settings, FolderOpen, X, CheckCircle, AlertCircle
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/use-toast';
 
 type Category = 'resumes' | 'machine-details' | 'other-info';
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
@@ -24,7 +31,8 @@ const categories = [
   { id: 'other-info' as const, label: 'Other Info', icon: FolderOpen }
 ];
 
-// Add prop type
+const API_URL = import.meta.env.VITE_API_BASE_URL;
+
 interface DocumentUploadProps {
   category?: Category;
 }
@@ -33,23 +41,20 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [defaultCategory, setDefaultCategory] = useState<Category>(category || 'other-info');
+  const { toast } = useToast();
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    setDragActive(e.type === "dragenter" || e.type === "dragover");
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+
+    if (e.dataTransfer.files) {
       handleFiles(Array.from(e.dataTransfer.files));
     }
   }, [defaultCategory]);
@@ -62,12 +67,11 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
       status: 'idle',
       progress: 0
     }));
-    
     setUploadFiles(prev => [...prev, ...newFiles]);
   };
 
   const updateFileCategory = (fileId: string, category: Category) => {
-    setUploadFiles(prev => prev.map(file => 
+    setUploadFiles(prev => prev.map(file =>
       file.id === fileId ? { ...file, category } : file
     ));
   };
@@ -77,37 +81,61 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
   };
 
   const uploadSingleFile = async (fileId: string) => {
-    setUploadFiles(prev => prev.map(file => 
-      file.id === fileId ? { ...file, status: 'uploading' } : file
+    const fileToUpload = uploadFiles.find(f => f.id === fileId);
+    if (!fileToUpload) return;
+
+    setUploadFiles(prev => prev.map(f =>
+      f.id === fileId ? { ...f, status: 'uploading', progress: 0 } : f
     ));
 
-    // Simulate upload progress for demo
-    // Replace this with your GCP upload logic
-    const file = uploadFiles.find(f => f.id === fileId);
-    if (!file) return;
-
     try {
-      // Simulate progress
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        setUploadFiles(prev => prev.map(f => 
-          f.id === fileId ? { ...f, progress } : f
-        ));
+      // Step 1: Get signed URL
+      const response = await fetch(`${API_URL}/get-upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: fileToUpload.file.name,
+          category: fileToUpload.category,
+          contentType: fileToUpload.file.type
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error?.error || 'Failed to get upload URL');
       }
 
-      // TODO: Replace with actual GCP upload
-      // const formData = new FormData();
-      // formData.append('file', file.file);
-      // formData.append('category', file.category);
-      // const response = await fetch('/api/upload', { method: 'POST', body: formData });
+      const { uploadUrl } = await response.json();
 
-      setUploadFiles(prev => prev.map(f => 
-        f.id === fileId ? { ...f, status: 'success' } : f
+      // Step 2: Upload file directly to GCS
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': fileToUpload.file.type },
+        body: fileToUpload.file
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed with status ${uploadResponse.status}`);
+      }
+
+      setUploadFiles(prev => prev.map(f =>
+        f.id === fileId ? { ...f, status: 'success', progress: 100 } : f
       ));
-    } catch (error) {
-      setUploadFiles(prev => prev.map(f => 
-        f.id === fileId ? { ...f, status: 'error', error: 'Upload failed' } : f
+
+      toast({
+        title: "Upload successful!",
+        description: `"${fileToUpload.file.name}" has been uploaded.`,
+      });
+
+    } catch (error: any) {
+      setUploadFiles(prev => prev.map(f =>
+        f.id === fileId ? { ...f, status: 'error', error: error.message || 'Upload failed' } : f
       ));
+      toast({
+        variant: 'destructive',
+        title: 'Upload failed',
+        description: error.message || 'Something went wrong',
+      });
     }
   };
 
@@ -118,38 +146,38 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
   };
 
   const getStatusIcon = (status: UploadStatus) => {
-    switch (status) {
-      case 'success': return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'error': return <AlertCircle className="w-4 h-4 text-red-500" />;
-      default: return null;
-    }
+    if (status === 'success') return <CheckCircle className="w-4 h-4 text-green-500" />;
+    if (status === 'error') return <AlertCircle className="w-4 h-4 text-red-500" />;
+    return null;
   };
 
   const getCategoryIcon = (categoryId: Category) => {
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) return FileText;
-    return category.icon;
+    return categories.find(c => c.id === categoryId)?.icon || FileText;
   };
 
   return (
     <div className="space-y-6">
-      {/* Default Category Selection */}
+      {/* Category Selector */}
       <Card className="p-6 bg-gradient-card shadow-card">
         <h3 className="text-lg font-semibold mb-4">Upload Settings</h3>
         <div className="flex items-center gap-4">
           <label className="text-sm font-medium">Default Category:</label>
-          <Select value={defaultCategory} onValueChange={(value: Category) => setDefaultCategory(value)} disabled={!!category}>
+          <Select
+            value={defaultCategory}
+            onValueChange={(value: Category) => setDefaultCategory(value)}
+            disabled={!!category}
+          >
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {categories.map(category => {
-                const Icon = category.icon;
+              {categories.map(c => {
+                const Icon = c.icon;
                 return (
-                  <SelectItem key={category.id} value={category.id}>
+                  <SelectItem key={c.id} value={c.id}>
                     <div className="flex items-center gap-2">
                       <Icon className="w-4 h-4" />
-                      {category.label}
+                      {c.label}
                     </div>
                   </SelectItem>
                 );
@@ -159,11 +187,11 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
         </div>
       </Card>
 
-      {/* Drag and Drop Area */}
-      <Card 
+      {/* Upload Area */}
+      <Card
         className={`p-8 border-2 border-dashed transition-all duration-200 ${
-          dragActive 
-            ? 'border-primary bg-primary/10 shadow-card-hover' 
+          dragActive
+            ? 'border-primary bg-primary/10 shadow-card-hover'
             : 'border-border bg-gradient-card hover:bg-card-hover'
         }`}
         onDragEnter={handleDrag}
@@ -200,15 +228,15 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Upload Queue ({uploadFiles.length})</h3>
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={uploadAllFiles}
                 disabled={uploadFiles.every(f => f.status !== 'idle')}
                 className="shadow-button"
               >
                 Upload All
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setUploadFiles([])}
                 className="shadow-button"
               >
@@ -220,7 +248,6 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
           <div className="space-y-3">
             {uploadFiles.map(fileItem => {
               const CategoryIcon = getCategoryIcon(fileItem.category);
-              
               return (
                 <div key={fileItem.id} className="p-4 bg-background rounded-lg border">
                   <div className="flex items-center justify-between mb-2">
@@ -233,10 +260,10 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
                         </p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
-                      <Select 
-                        value={fileItem.category} 
+                      <Select
+                        value={fileItem.category}
                         onValueChange={(value: Category) => updateFileCategory(fileItem.id, value)}
                         disabled={fileItem.status === 'uploading'}
                       >
@@ -244,13 +271,13 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {categories.map(category => {
-                            const Icon = category.icon;
+                          {categories.map(c => {
+                            const Icon = c.icon;
                             return (
-                              <SelectItem key={category.id} value={category.id}>
+                              <SelectItem key={c.id} value={c.id}>
                                 <div className="flex items-center gap-2">
                                   <Icon className="w-4 h-4" />
-                                  {category.label}
+                                  {c.label}
                                 </div>
                               </SelectItem>
                             );
@@ -264,8 +291,8 @@ export default function DocumentUpload({ category }: DocumentUploadProps) {
                       </Badge>
 
                       {fileItem.status === 'idle' && (
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           onClick={() => uploadSingleFile(fileItem.id)}
                           className="shadow-button"
                         >
